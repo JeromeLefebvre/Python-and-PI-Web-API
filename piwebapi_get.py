@@ -1,5 +1,6 @@
 
 import json
+import getpass
 
 import requests
 # PI Web APIのリクエストはHTTPSが必要ですが、
@@ -16,20 +17,41 @@ base_url = 'https://' + piwebapi_server + '/piwebapi/'
 # Basic認識を使う場合はユーザー名とパスワードを送る必要があります。
 # Anonymousを使う場合は下記のように空白でよいです。
 user = ''
-password = ''
+_password = ''
 
 
-def pi_get_requests(controller, parameters={}):
+def password():
+    global _password
+    if _password == '':
+    	_password = getpass.getpass('please type in your password: ')
+    return _password
+
+
+def pi_get_requests(action, parameters={}, debug=False):
     # pi_get_requestsの関数は変数として：
-    # controllerにelement、assetdatabasessetなどのController（Method)名
+    # actionにelement、assetdatabasessetなどのController（Method)名か
+    # controler名/webidのリソース名
     # parametersに"Url Parameters"を設定する
 
     # verify=Falseのパラメーターは自己署名証明書しかない環境では
     # エラーを発生させないためのパラメーターです。
-    response = requests.get(url=base_url + controller,
+    response = requests.get(url=base_url + action,
                             params=parameters,
                             verify=False,
-                            auth=(user, password))
+                            auth=(user, password()))
+    # エラーが発生すると、レスポンスのヘッダーなどを見て何かあったと分かるケースが多いので、
+    # pi_get_requests(action, parameters={}, debug=True)と実行するとレスポンスの情報を出力します。
+    if debug:
+        # レスポンスなどを出力する
+        print('デバッグのための情報です')
+        print('{0: <10} {1}'.format('url:', response.url))
+        print('{0: <10} {1}'.format('status:', response.status_code))
+        print('{0: <10} {1}'.format('reason:   ', response.reason))
+        print('{0: <10} '.format('headers:'))
+        for key in response.headers:
+            print('     {0: <17} {1}'.format(key + ':', response.headers[key]))
+        # 
+        # print('{0: <10} {1}'.format('text:'), response.text)
     return json.loads(response.text)
 
 
@@ -44,9 +66,13 @@ parameters = {'path': r'\\' + af_server_name}
 af_server = pi_get_requests('assetservers', parameters)
 pprint(af_server)
 
+# Getの場合はWebIDが必要ですが、上記のaf_serverの変数から取得できます。
+# pi_get_requestsの第１引数にcontroller名+WebIDを設定し、
+# 第2引数のパラメーターは無しとすることでAF Serverの情報が取得できます。
 webID = af_server['WebId']
 print(pi_get_requests(r'assetservers/' + webID) == af_server)
 
+# 上記の例でWebIDを除くとすべてのAF Serverが取得できます。
 allServers = pi_get_requests('assetservers')
 pprint(allServers)
 
@@ -65,38 +91,3 @@ pumps = pi_get_requests('assetdatabases\{0}\elements'.format(pump_db_web_Id))
 
 for element in pumps['Items']:
     print(element['Name'], element['TemplateName'])
-
-
-def pi_get_requests(controller, parameters={}, debug=False):
-    # pi_get_requestsの関数は変数として：
-    # controllerにelement、assetdatabasessetなどのController（Method)名
-    # parametersに"Url Parameters"を設定する
-
-    # verify=Falseのパラメーターは自己署名証明書しかない環境では
-    # エラーを発生させないためのパラメーターです。
-    response = requests.get(url=base_url + controller,
-                            params=parameters,
-                            verify=False,
-                            auth=(user, password))
-    if debug:
-        # レスポンスなどを出力する
-        print('デバッグのための情報です')
-        print('{0: <10} {1}'.format('url:', response.url))
-        print('{0: <10} {1}'.format('status:', response.status_code))
-        print('{0: <10} {1}'.format('reason:   ', response.reason))
-        print('{0: <10} '.format('headers:'))
-        for key in response.headers:
-            print('     {0: <17} {1}'.format(key + ':', response.headers[key]))
-        # print('{0: <10} {1}'.format('text:'), response.text)
-    return json.loads(response.text)
-
-
-import getpass
-_password = ''
-
-
-def password():
-    if _password != '':
-        return _password
-    password = getpass.getpass('please type in your password: ')
-    return password
